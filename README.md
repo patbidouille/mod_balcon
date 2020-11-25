@@ -1,8 +1,8 @@
 # mod_balcon
 
-Automate de mesure de luminosité Pour fermer les volets le soir.
+Automate de mesure de luminosité pour fermer les volets le soir.
 
-Avec une gestion de prises 22V suivant différents mode.
+Avec une gestion de prises 220V suivant différents mode.
 
 Changement de mode et envoi de valeurs par MQTT.
 
