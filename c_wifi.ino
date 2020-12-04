@@ -4,9 +4,9 @@
 - sinon passe au seconds
 */
 
-const char* ssid1 = "Freebox-587BA2";
-const char* ssid2 = "Freebox-587BA2_EXT";
-const char* password = "Pl_aqpsmdp11";
+const char* ssid1 = "Freebox-..";
+const char* ssid2 = "Freebox-.._EXT";
+const char* password = "....";
 
 void setupwifi(boolean debug) {
  
