@@ -70,7 +70,7 @@ void reconnect() {
         Serial.println("connected");
       }
       // Once connected, publish an announcement...
-      client.publish("mod_lum", "mod_lum vous salut !");
+      client.publish("mod_balcon", "mod_balcon vous salut !");
       // ... and resubscribe
       client.subscribe("#");
       // On affiche que c'est OK

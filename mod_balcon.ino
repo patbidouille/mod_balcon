@@ -34,12 +34,14 @@ Commande et conf MQTT
     si mesg == "aff" On renvoi la valeur de conf luminosité topic MQTT "mod_balcon/conflum"  
     mosquitto_pub -d -t mod_balcon/cmd -m "aff"    
     si mesg == "tmp" On renvoi le valeur de conf du temps topic MQTT mod_balcon/conflum"  
+    si mesg == "fetesON"  Activation du mode fêtes
+    si mesg == "fetesOFF" Désactivation du mode fêtes
  - mod_balcon/haut = si mesg == "ON" on monte les volets
  - mod_balcon/bas = si mesg == "ON" on baisse les volets
  - mod_balcon/conftemps Défini la valeur de temps entre 2 mesures de luminosité.
  - mod_balcon/conflum = Défini le seuil de luminosité pour les volets.
  
- - mod_balcon/confLfetes = défini le seuil de muminosité pour les fêtes
+ - mod_balcon/confLfetes = défini le seuil de luminosité pour les fêtes
  - mod_balcon/confTfetes = defini le temps d'allumage des prises.
  - mod_balcon/confTpre = defini la tempo d'allumage pour une présence
  
@@ -81,9 +83,9 @@ const char* ssid1 = "Freebox-587BA2_EXT";
 const char* ssid2 = "Freebox-587BA2";
 const char* password = "Pl_aqpsmdp11";
 */
-const char* mqtt_server = "192.168.1.81";
+const char* mqtt_server = "192.168.1.xx";
 const char* mqttUser = "mod";
-const char* mqttPassword = "...";
+const char* mqttPassword = "";
 const char* svrtopic = "domoticz/in";
 const char* topic_Domoticz_OUT = "domoticz/out"; 
  
@@ -113,10 +115,10 @@ bool debug = true;      // Affiche sur la console si True
 bool mess = false;      // true si message reçu
 String sujet = "";      // contient le topic
 String mesg = "";       // contient le message reçu
-int lum = 90;           // Valeur de luminosité par défaut des volets
-int lfetes = 90;        // Valeur de luminosité par défaut pour le mode fetes
+int lum = 120;           // Valeur de luminosité par défaut des volets
+int lfetes = 130;        // Valeur de luminosité par défaut pour le mode fetes
 long tfetes = 21600000; // temps d'allumagpour les fêtes 6 heures, redéfini dans le setup
-long tpre = 20000;      // tempo pour une présence 1min, redéfini dans le setup
+long tpre = 10000;      // tempo pour une présence 1min, redéfini dans le setup
 long lsmg = 60000;      // Valeur de temps entre 2 lectures, redéfini dans le setup
 bool enbas = false;     // Flag de test volet bas
 bool pres = false;      // flag de présence
@@ -131,7 +133,7 @@ unsigned int addr = 0;  // addresse de stockage de lum
 int startingHour = 12;
 // set your starting hour here, not below at int hour. This ensures accurate daily correction of time
 int seconds = 0;
-int minutes = 33;
+int minutes = 0;
 int hours = startingHour;
 int days = 0;
 //Accuracy settings
@@ -145,9 +147,9 @@ void setup() {
 //  pinMode(arret, OUTPUT);     // Initialize le mvmt arret
   pinMode(bas, OUTPUT);     // Initialize le mvmt bas
   pinMode(lbp, OUTPUT);     // Initialize la LED verte 
-  pinMode(relais, OUTPUT);     // Initialize le realis
+  pinMode(relais, OUTPUT);     // Initialize le relais
   pinMode(radar, INPUT);     // Initialize le radar
-//  digitalWrite(bas,HIGH);
+  digitalWrite(relais,HIGH);
   
   Serial.begin(115200);
   setupwifi(debug);
@@ -161,23 +163,28 @@ void setup() {
   // On regarde ce qui est dans l'eeprom, sinon on met la valeur par défaut.
   lum=eeGetInt(100);
   if ((lum == 0)|| (lum == -1))  {
-    lum=90;
+    lum = 120;           // Valeur de luminosité par défaut des volets
+    eeWriteInt(100, lum);
   }
   lsmg=eeGetInt(50);
   if ((lsmg == 0) || (lsmg == -1)) {
-    lsmg=10000;
+    long lsmg = 60000;    
+    eeWriteInt(50, lsmg);
   }
   lfetes=eeGetInt(110);
   if ((lfetes == 0)|| (lfetes == -1))  {
-    tfetes=90;
+    lfetes = 130;        // Valeur de luminosité par défaut pour le mode fetes
+    eeWriteInt(110, lfetes);
   }
   tfetes=eeGetInt(120);
   if ((tfetes == 0)|| (tfetes == -1))  {
-    tfetes=21600000;
+    tfetes = 21600000; // temps d'allumagpour les fêtes 6 heures, redéfini dans le setup
+    eeWriteInt(120, tfetes);
   }
   tpre=eeGetInt(60);
   if ((tpre == 0) || (tpre == -1)) {
-    tpre=20000;
+    tpre = 10000;
+    eeWriteInt(60, tpre);
   }
 
   if (debug) {
@@ -187,6 +194,8 @@ void setup() {
     Serial.println(lsmg);
     Serial.print("temps présence ");
     Serial.println(tpre);
+    Serial.print("valeur calcul ");
+    Serial.println(calcul);
   }
   
 }
@@ -237,22 +246,28 @@ void attend(int duree) {
 
 //========================================
 //Il faut intialiser les variables second, minutes, hours avant de recommencer les 24h
-bool cpt14() { //compteur de 14H
-  return false;
+void cpt14() { //compteur de 14H
+  //return false;
   timeNow = millis()/1000; // the number of milliseconds that have passed since boot
   seconds = timeNow - timeLast;
   //the number of seconds that have passed since the last time 60 seconds was reached.
-  if (seconds == 60) {
+  if (seconds >= 60) {
     timeLast = timeNow;
     minutes = minutes + 1; }
+//    Serial.print(seconds);
+//    Serial.print(" #### ");
   //if one minute has passed, start counting milliseconds from zero again and add one minute to the clock.
-  if (minutes == 60){
+  if (minutes >= 60){
     minutes = 0;
-    hours = hours + 1; }
+    hours = hours + 1; 
+//    Serial.print(hours);
+//    Serial.print(" #### ");
+    //return true;
+  }
   // if one hour has passed, start counting minutes from zero and add one hour to the clock
-  if (hours == 14){
+  if (hours >= 24){
     hours = 0;
-    return true;
+    //return true;
   }
 }
 
@@ -270,15 +285,16 @@ void evenement() {
       String svalue = "Détection";
       Emetmessage(idx, name, svalue);
       client.publish(svrtopic,msg,false);
+      client.publish("mod_balcon/detection","ON");
       detect=true;
       //Serial.println("detection!");
     }
     //Serial.println(millis() - lastdetect);
-    if (millis() - lastdetect > 20000) { //si temps > 2min
+    if (millis() - lastdetect > 10000) { //si temps > 1min
       detect=false;
       //Serial.println(millis() - lastdetect);
     }
-    if ( valeur < lum )  {
+    if (( valeur < lum ) | (pres))  {
        pres=true;
        lasttpre=millis();
     }
@@ -289,13 +305,15 @@ void evenement() {
 void traitepre() {
   if ((pres) &  (millis() - lasttpre < tpre)) {
     if (!relactif) {
-      digitalWrite(relais, HIGH);
+      digitalWrite(relais, LOW);
       Serial.println("présence ALLUMAGE");
+      client.publish("mod_balcon/allumage","ON");
       relactif=!relactif;
     }
   } else {
     if (relactif) {
-      digitalWrite(relais, LOW);
+      digitalWrite(relais, HIGH);
+      client.publish("mod_balcon/allumage","OFF");
       Serial.println("présence ETEINT");
       pres=false;
       relactif=!relactif;
@@ -309,23 +327,38 @@ void traitepre() {
 //========================================
 void traitefetes() {
   if (fetes) {
-    if ((!tempo) & (!calcul)) { 
+//    Serial.print(tempo);
+//    Serial.print(" -- ");
+//    Serial.println(calcul);
+//    delay(2000);
+    if (!tempo)  { 
       lasttfetes=millis(); 
+    }
+    if (calcul) {
+      cpt14();
+      //if (minutes >= 2) { calcul=false; }
+      //Serial.println("test min");
+      if (hours = 16) { calcul=false; }
+    }
+
+    
+    if ((!calcul) & (valeur < lfetes))  {
+      tempo=true;
+      calcul=true;
       seconds =0;
       minutes=0;
       hours=0;
+      digitalWrite(relais, HIGH);
+      client.publish("mod_balcon/fetes", "Allumage fêtes");
+      Serial.println("fetes ALLUMAGE");
+    } 
+    if ((tempo) & (millis() - lasttfetes > tfetes)) {
+      tempo=false;
+      digitalWrite(relais, LOW);
+      client.publish("mod_balcon/fetes", "Extinction fêtes");
+      Serial.println("fetes ETEINT");
     }
-    if ((calcul) & (cpt14())) { calcul=false; }
-    if (!calcul) {
-      if  ((valeur < lfetes) & (millis() - lasttfetes > tfetes)) {
-        tempo=true;
-        digitalWrite(relais, HIGH);
-      } else {
-        tempo=false;
-        digitalWrite(relais, LOW);
-        calcul=true;
-      }
-    }
+    
   }
 }
 
@@ -339,6 +372,9 @@ void traitelum() {
     String svalue = String(analogRead(port),DEC);
     Emetmessage(idx, name, svalue);
     client.publish(svrtopic,msg,false);
+    String es = svalue;
+    svalue.toCharArray(msg,80);
+    client.publish("mod_balcon/luminosite", msg); 
 
     valeur = analogRead(port);
     String val = String(valeur);
@@ -440,14 +476,6 @@ void traiteMQTT () {
       Serial.print("init tpre !!!");
       eeWriteInt(60, tpre);
     }
-    if ( sujet == "mod_balcon/cmd" ) {
-      if ( mesg == "ON" ) {
-        digitalWrite(lbp,HIGH);  
-      } 
-      if (mesg == "OFF") {
-        digitalWrite(lbp,LOW);  
-      }
-    }
     if ( sujet == "mod_balcon/haut" ) {
       if ( mesg == "ON" ) {
         digitalWrite(haut,HIGH);
@@ -463,31 +491,49 @@ void traiteMQTT () {
       }
     } 
     if ( sujet == "mod_balcon/cmd" ) {
+       if ( mesg == "ON" ) {
+        digitalWrite(lbp,HIGH);  
+      } 
+      if (mesg == "OFF") {
+        digitalWrite(lbp,LOW);  
+      }     
       if ( mesg == "aff" ) {
         digitalWrite(lbp,HIGH);
         delay(5000);
         digitalWrite(lbp,LOW);
-        snprintf (msg, 80, "Valeur de conf luminosité", String(lum).c_str());
-        client.publish("mod_balcon/conflum", String(lum).c_str());  
-        snprintf (msg, 80, "Valeur de conf tempo entre 2 mesures de lum", String(lsmg).c_str());
-        client.publish("mod_balcon/conftemps", String(lsmg).c_str());
-        snprintf (msg, 80, "Valeur de conf luminosité fêtes", String(lfetes).c_str());
-        client.publish("mod_balcon/confLfetes", String(lfetes).c_str());
-        snprintf (msg, 80, "Valeur de conf Tempo fêtes", String(tfetes).c_str());
-        client.publish("mod_balcon/conftempsTfetes", String(tfetes).c_str());
-        snprintf (msg, 80, "Valeur de conf temps présence", String(tpre).c_str());
-        client.publish("mod_balcon/confTpre", String(tpre).c_str());
-        if (debug) {
-          Serial.print("conf lum = ");
-          Serial.println(lum);   
+        String es= "Valeur de conf luminosité = "+String(lum);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/reponse-lum", msg); 
+        //snprintf(msg, strlen(msg), "Valeur de conf tempo entre 2 mesures de lum", String(lsmg).c_str());
+        es= "Valeur de conf tempo entre 2 mesures de lum = "+String(lsmg);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/reponse-temps", msg);
+        //snprintf(msg, strlen(msg), "Valeur de conf luminosité fêtes", String(lfetes).c_str());
+        es= "Valeur de conf luminosité fêtes = "+String(lfetes);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/reponse-lumfetes", msg);
+        //snprintf(msg, strlen(msg), "Valeur de conf Tempo fêtes", String(tfetes).c_str());
+        es= "Valeur de conf Tempo fêtes = "+String(tfetes);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/reponse-tempsfetes", msg);
+        //snprintf(msg, strlen(msg), "Valeur de conf temps présence", String(tpre).c_str());
+        es= "Valeur de conf temps présence = "+String(tpre);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/reponse-tempspresence", msg);
+        if (fetes) {
+          client.publish("mod_balcon/reponse-modefetes", "Mode fêtes actif");
+        } else {
+          client.publish("mod_balcon/reponse-modefetes", "Mode fêtes inactif");
         }
       }
       if ( mesg == "tmp" ) {
         digitalWrite(lbp,HIGH);
         delay(5000);
         digitalWrite(lbp,LOW);
-        snprintf (msg, 80, "Valeur de conf du temps", String(lsmg).c_str());
-        client.publish("mod_balcon/conflum", String(lsmg).c_str());  
+        //snprintf (msg, strlen(msg), "Valeur de conf du temps", String(lsmg).c_str());
+        String es= "Valeur de conf du temps = "+String(lsmg);
+        es.toCharArray(msg,80);
+        client.publish("mod_balcon/conflum", msg);  
         if (debug) {
           Serial.print("conf lsmg = ");
           Serial.println(lsmg);   
@@ -501,6 +547,7 @@ void traiteMQTT () {
       }
     }
   mess = false;
+  
 }
 
 //========================================
